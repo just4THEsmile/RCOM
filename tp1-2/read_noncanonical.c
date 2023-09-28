@@ -23,6 +23,8 @@
 
 volatile int STOP = FALSE;
 
+enum frame_state {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP_RCV}; 
+
 int main(int argc, char *argv[])
 {
     // Program usage: Uses either COM1 or COM2
@@ -91,17 +93,73 @@ int main(int argc, char *argv[])
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
 
+    enum frame_state State = START;
+
+    int bytes;
     while (STOP == FALSE)
     {
-        // Returns after 5 chars have been input
-        int bytes = read(fd, buf, BUF_SIZE);
-        buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
+        switch(State){
 
+            case(START):{
+                // Returns after 5 chars have been input
+                bytes = read(fd, buf, BUF_SIZE);
+                buf[bytes] = '\0'; 
+                if (buf[0] == 0x7E){
+                    State = FLAG_RCV;
+                }
 
- 
-        printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", buf[0],buf[1],buf[2],buf[3],buf[4], bytes);
-        if (buf[0] == 0x7E)
-            STOP = TRUE;
+                break;
+            }
+            case(FLAG_RCV):{
+
+                printf("flag_rcv buf[1]: %02X\n", buf[1]);
+                if (buf[1] == 0x03)
+                    State = A_RCV;
+                else if (buf[1] == 0x7E)
+                    State = FLAG_RCV;
+                else
+                    State = START;
+                break;
+            }
+            case(A_RCV):{
+                printf("A_rcv buf[2]: %02X\n", buf[2]);  
+                if (buf[2] == 0x03)
+                    State = C_RCV;
+                else if (buf[2] == 0x7E)
+                    State = FLAG_RCV;
+                else
+                    State = START;
+                break;
+            }
+            case(C_RCV):{
+                printf("C_rcv buf[3]: %02X\n", buf[3]);
+                if (buf[3] == 0x00)
+                    State = BCC_OK;
+                else if (buf[3] == 0x7E)
+                    State = FLAG_RCV;
+                else
+                    State = START;
+                break;
+            
+            }
+            case(BCC_OK):{
+                printf("BCC_OK buf[4]: %02X\n", buf[4]);
+                if (buf[4] == 0x7E)
+                    State = STOP_RCV;
+                else
+                    State = START;
+                break;
+            }
+            case(STOP_RCV):{
+                STOP = TRUE;
+                printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", buf[0],buf[1],buf[2],buf[3],buf[4], bytes);
+                break;
+                }
+
+        };
+        
+                    
+
     }
 
     buf[0]='\0';
@@ -113,7 +171,7 @@ int main(int argc, char *argv[])
     buf[3] = 0x06;
     buf[4] = 0x7E;
 
-    int bytes = write(fd, buf, 5);
+    bytes = write(fd, buf, 5);
     printf("%d bytes written\n", bytes);
 
     // Wait until all bytes have been written to the serial port
