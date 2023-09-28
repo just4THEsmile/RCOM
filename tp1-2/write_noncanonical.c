@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
+    newtio.c_cc[VTIME] = 30; // Inter-character timer unused
     newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
@@ -132,7 +132,6 @@ int main(int argc, char *argv[])
     int bytes = write(fd, bufsend, 5);
     printf("%d bytes written\n", bytes);
 
-    // Wait until all bytes have been written to the serial port
     unsigned char bufreceive[BUF_SIZE] = {0};
 
 //
@@ -141,21 +140,23 @@ int main(int argc, char *argv[])
     while (alarmCount < 4){   
         
         // Returns after 5 chars have been input
-        
+        printf("Waiting for data\n");
         int bytes = read(fd, bufreceive, BUF_SIZE);
 
-        printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", bufreceive[0],bufreceive[1],bufreceive[2],bufreceive[3],bufreceive[4], bytes);
+        printf("%d bytes read\n", bytes);
 
         if (alarmEnabled == FALSE)
         {
+            printf("Alarm trying #%d\n", alarmCount);
             alarm(3); // Set alarm to be triggered in 3s
             alarmEnabled = TRUE;
         }
 
         if (bufreceive[0] == 0x7E) {
-            alarm(0);//disables alarm
+            printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", bufreceive[0],bufreceive[1],bufreceive[2],bufreceive[3],bufreceive[4], bytes);
             alarmCount = 4;//breaks loop
         }
+        printf("end loop");
             
     }
 
