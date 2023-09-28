@@ -11,6 +11,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <signal.h>
+
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -24,6 +26,32 @@
 
 volatile int STOP = FALSE;
 
+//alarm variables
+int alarmEnabled = FALSE;
+int alarmCount = 0;
+
+int fd;
+
+
+void alarmHandler(int signal)
+{
+    alarmEnabled = FALSE;
+    alarmCount++;
+
+    // Create string to send
+    unsigned char bufsend[BUF_SIZE] = {0};
+
+
+    bufsend[0] = 0x7E;
+    bufsend[1] = 0x03;
+    bufsend[2] = 0x03;
+    bufsend[3] = 0x00;
+    bufsend[4] = 0x7E;
+
+    int bytes = write(fd, bufsend, 5);
+
+    printf("Alarm trying #%d\n", alarmCount);
+}
 
 int main(int argc, char *argv[])
 {
@@ -42,7 +70,7 @@ int main(int argc, char *argv[])
 
     // Open serial port device for reading and writing, and not as controlling tty
     // because we don't want to get killed if linenoise sends CTRL-C.
-    int fd = open(serialPortName, O_RDWR | O_NOCTTY);
+    fd = open(serialPortName, O_RDWR | O_NOCTTY);
 
     if (fd < 0)
     {
@@ -92,29 +120,43 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Create string to send
-    unsigned char buf[BUF_SIZE] = {0};
+    unsigned char bufsend[BUF_SIZE] = {0};
 
 
-    buf[0] = 0x7E;
-    buf[1] = 0x03;
-    buf[2] = 0x03;
-    buf[3] = 0x00;
-    buf[4] = 0x7E;
+    bufsend[0] = 0x7E;
+    bufsend[1] = 0x03;
+    bufsend[2] = 0x03;
+    bufsend[3] = 0x00;
+    bufsend[4] = 0x7E;
 
-    int bytes = write(fd, buf, 5);
+    int bytes = write(fd, bufsend, 5);
     printf("%d bytes written\n", bytes);
 
     // Wait until all bytes have been written to the serial port
-    buf[0]='\0';
-    while (STOP == FALSE)
-    {
+    unsigned char bufreceive[BUF_SIZE] = {0};
+
+//
+    (void)signal(SIGALRM, alarmHandler);
+
+    while (alarmCount < 4){   
+        
         // Returns after 5 chars have been input
-        int bytes = read(fd, buf, BUF_SIZE);
+        
+        int bytes = read(fd, bufreceive, BUF_SIZE);
 
-            printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", buf[0],buf[1],buf[2],buf[3],buf[4], bytes);
+        printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", bufreceive[0],bufreceive[1],bufreceive[2],bufreceive[3],bufreceive[4], bytes);
 
-        if (buf[0] == 0x7E) 
-            STOP = TRUE;
+        if (alarmEnabled == FALSE)
+        {
+            alarm(3); // Set alarm to be triggered in 3s
+            alarmEnabled = TRUE;
+        }
+
+        if (bufreceive[0] == 0x7E) {
+            alarm(0);//disables alarm
+            alarmCount = 4;//breaks loop
+        }
+            
     }
 
     // Restore the old port settings
