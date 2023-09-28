@@ -28,7 +28,7 @@ volatile int STOP = FALSE;
 
 //alarm variables
 int alarmEnabled = FALSE;
-int alarmCount = 1;
+int alarmCount = 0;
 
 int fd;
 
