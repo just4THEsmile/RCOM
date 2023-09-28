@@ -28,7 +28,7 @@ volatile int STOP = FALSE;
 
 //alarm variables
 int alarmEnabled = FALSE;
-int alarmCount = 0;
+int alarmCount = 1;
 
 int fd;
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 30; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -137,26 +137,22 @@ int main(int argc, char *argv[])
 //
     (void)signal(SIGALRM, alarmHandler);
 
-    while (alarmCount < 4){   
+    while (alarmCount < 3){   
         
         // Returns after 5 chars have been input
-        printf("Waiting for data\n");
         int bytes = read(fd, bufreceive, BUF_SIZE);
 
-        printf("%d bytes read\n", bytes);
 
         if (alarmEnabled == FALSE)
-        {
-            printf("Alarm trying #%d\n", alarmCount);
+        {   
             alarm(3); // Set alarm to be triggered in 3s
             alarmEnabled = TRUE;
         }
 
         if (bufreceive[0] == 0x7E) {
             printf("contents: 0x%02X %02X %02X %02X %02X :%d\n", bufreceive[0],bufreceive[1],bufreceive[2],bufreceive[3],bufreceive[4], bytes);
-            alarmCount = 4;//breaks loop
+            alarmCount = 3;//breaks loop
         }
-        printf("end loop");
             
     }
 
