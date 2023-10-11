@@ -72,6 +72,9 @@ int main(int argc, char *argv[])
     // because we don't want to get killed if linenoise sends CTRL-C.
     fd = open(serialPortName, O_RDWR | O_NOCTTY);
 
+    printf("fd opened with value: %d\n", fd);
+
+    printf("Serial port: %s\n", serialPortName);
     if (fd < 0)
     {
         perror(serialPortName);
