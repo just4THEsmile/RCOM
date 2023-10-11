@@ -14,6 +14,9 @@
 
 #include <signal.h>
 
+// Baudrate settings are defined in <asm/termbits.h>, which is
+// included by <termios.h>
+#define BAUDRATE B38400
 
 // defining flags
 #define FLAG 0x7E
@@ -62,14 +65,12 @@ void alarmHandler(int signal){
     printf("Alarm trying #%d\n", alarmCount);
     }
 
-////////////////////////////////////////////////
-// LLOPEN
-////////////////////////////////////////////////
-int llopen(LinkLayer connectionParameters)
-{   
+
+//connect to serial port
+int connect(LinkLayer connectionParameters){
     // Open serial port device for reading and writing, and not as controlling tty
     // because we don't want to get killed if linenoise sends CTRL-C.
-    fd = open(serialPortName, O_RDWR | O_NOCTTY);
+    fd = open(BAUDRATE, O_RDWR | O_NOCTTY);
     //checking if port is open
     if (fd < 0)
     {
@@ -87,13 +88,13 @@ int llopen(LinkLayer connectionParameters)
     // Clear struct for new port settings
     memset(&newtio, 0, sizeof(newtio));
 
-    newtio.c_cflag = connectionParameters.baudRate | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = connectionParameters.timeout; // Inter-character timer unused
+    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
     newtio.c_cc[VMIN] = 0;  // Blocking read until 0 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
@@ -112,8 +113,23 @@ int llopen(LinkLayer connectionParameters)
         perror("tcsetattr");
         exit(-1);
     }
+    
+    return 0;
+}    
 
+////////////////////////////////////////////////
+// LLOPEN
+////////////////////////////////////////////////
+int llopen(LinkLayer connectionParameters)
+{   
+    
 
+    int fd = connect(connectionParameters);
+
+    if (fd < 0) {
+        printf("Error connecting to serial port");
+        return -1;
+        }
     if(connectionParameters.role == LlTx){
 
         (void)signal(SIGALRM, alarmHandler);
