@@ -1,9 +1,19 @@
 // Application layer protocol implementation
 
 #include "application_layer.h"
+#include "link_layer.h"
+#include <string.h>
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
-    // TODO
+    LinkLayer App_info;
+    App_info.baudRate = baudRate;
+    App_info.nRetransmissions = nTries;
+    App_info.timeout = timeout;
+    strcpy(App_info.serialPort, serialPort);
+    App_info.role = strcmp(role, "rx") == 0 ? LlTx : LlRx;
+
+    llopen(App_info);
+
 }

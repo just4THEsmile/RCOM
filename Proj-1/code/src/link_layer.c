@@ -70,7 +70,7 @@ void alarmHandler(int signal){
 int connect(LinkLayer connectionParameters){
     // Open serial port device for reading and writing, and not as controlling tty
     // because we don't want to get killed if linenoise sends CTRL-C.
-    fd = open(BAUDRATE, O_RDWR | O_NOCTTY);
+    fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY);
     //checking if port is open
     if (fd < 0)
     {
@@ -115,7 +115,24 @@ int connect(LinkLayer connectionParameters){
     }
     
     return 0;
-}    
+} 
+
+//send supervisory frame
+unsigned char sendSupFrame(unsigned char A,unsigned char C){
+    unsigned char buf[5]={0};
+    buf[0] = FLAG;
+    buf[1] = A;
+    buf[2] = C;
+    buf[3] = A^C;
+    buf[4] = FLAG;
+    int res = write(fd,buf,5);
+    if(res<0){
+        perror("Error writing to serial port");
+        return -1;
+    }   
+    return 0;    
+
+}   
 
 ////////////////////////////////////////////////
 // LLOPEN
@@ -171,7 +188,7 @@ int llopen(LinkLayer connectionParameters)
                         }
                         break;
                     case C_RCV:
-                        if(byte == A_RECEIVER^C_UA){
+                        if(byte == (A_RECEIVER^C_UA)){
                             state = BCC_OK;
                         }
                         else if(byte == FLAG){
@@ -193,12 +210,7 @@ int llopen(LinkLayer connectionParameters)
                         break;
                 }
             }
-            
-
-
         }
-
-
 
     }else if(connectionParameters.role == LlRx){
 
@@ -236,7 +248,7 @@ int llopen(LinkLayer connectionParameters)
                     }
                     break;
                 case C_RCV:
-                    if(byte == A_SENDER^C_SET){
+                    if(byte == (A_SENDER^C_SET)){
                         state = BCC_OK;
                     }
                     else if(byte == FLAG){
@@ -296,18 +308,3 @@ int llclose(int showStatistics)
     return 1;
 }
 
-unsigned char sendSupFrame(unsigned char A,unsigned char C){
-    unsigned char buf[5]={0};
-    buf[0] = FLAG;
-    buf[1] = A;
-    buf[2] = C;
-    buf[3] = A^C;
-    buf[4] = FLAG;
-    int res = write(fd,buf,5);
-    if(res<0){
-        perror("Error writing to serial port");
-        return -1;
-    }   
-    return 0;    
-
-}
