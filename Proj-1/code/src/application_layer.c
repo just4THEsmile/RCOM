@@ -12,7 +12,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     App_info.nRetransmissions = nTries;
     App_info.timeout = timeout;
     strcpy(App_info.serialPort, serialPort);
-    App_info.role = strcmp(role, "rx") == 0 ? LlTx : LlRx;
+    App_info.role = strcmp(role, "rx") == 0 ? LlRx : LlTx;
 
     llopen(App_info);
 

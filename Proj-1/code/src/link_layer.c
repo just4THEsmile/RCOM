@@ -114,11 +114,11 @@ int connect(LinkLayer connectionParameters){
         exit(-1);
     }
     
-    return 0;
+    return fd;
 } 
 
 //send supervisory frame
-unsigned char sendSupFrame(unsigned char A,unsigned char C){
+int sendSupFrame(unsigned char A,unsigned char C){
     unsigned char buf[5]={0};
     buf[0] = FLAG;
     buf[1] = A;
@@ -126,6 +126,7 @@ unsigned char sendSupFrame(unsigned char A,unsigned char C){
     buf[3] = A^C;
     buf[4] = FLAG;
     int res = write(fd,buf,5);
+    printf(" send sup frame   Sent %d bytes\n",res);
     if(res<0){
         perror("Error writing to serial port");
         return -1;
@@ -142,7 +143,7 @@ int llopen(LinkLayer connectionParameters)
     
 
     int fd = connect(connectionParameters);
-
+    printf("llopen with fd: %d\n",fd);
     if (fd < 0) {
         printf("Error connecting to serial port");
         return -1;
@@ -152,13 +153,14 @@ int llopen(LinkLayer connectionParameters)
         (void)signal(SIGALRM, alarmHandler);
         
         while(connectionParameters.nRetransmissions!=alarmCount && state!=STOP_RCV ){
-            //printf("Sending SET\n");
+            
+            printf("Sending SET\n");
             sendSupFrame(A_SENDER,C_SET);
-            alarm(connectionParameters.timeout);
             alarmTrigger = FALSE;
+            alarm(connectionParameters.timeout);
             state = START;
-            unsigned char byte;
-            while(state!=STOP_RCV && !alarmTrigger){
+            unsigned char byte='\0';
+            while(state!=STOP_RCV && !alarmTrigger){ 
                 read(fd,&byte,1);
                 switch(state){
                     case START:
@@ -213,12 +215,10 @@ int llopen(LinkLayer connectionParameters)
         }
 
     }else if(connectionParameters.role == LlRx){
-
         state = START;
         unsigned char byte;
-        
+
         while(state!=STOP_RCV){
-            //printf("Waiting for SET\n");
             read(fd,&byte,1);
             switch(state){
                 case START:
