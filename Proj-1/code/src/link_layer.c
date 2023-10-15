@@ -33,6 +33,8 @@
 #define C_Info1 0x40
 
 
+
+
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
@@ -52,9 +54,17 @@ int fd;
 //serial portName
 const char *serialPortName;
 
+LinkLayer connectionParameters_global;
+
 //frame state
-enum frame_state {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP_RCV}; 
-enum frame_state state;
+enum frame_Sup_state {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP_RCV}; 
+enum frame_Sup_state state;
+
+enum frame_I_state  {START, FLAG_RCV, A_RCV, C_RCV, BCC1_OK,BCC2_OK, STOP_RCV,READING_DATA}; 
+
+
+//frame number
+unsigned char frame_number = 0;
 
 
 
@@ -140,9 +150,9 @@ int sendSupFrame(unsigned char A,unsigned char C){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {   
-    
+    connectionParameters_global = connectionParameters;
 
-    int fd = connect(connectionParameters);
+    fd = connect(connectionParameters);
     printf("llopen with fd: %d\n",fd);
     if (fd < 0) {
         printf("Error connecting to serial port");
@@ -282,9 +292,108 @@ int llopen(LinkLayer connectionParameters)
 // LLWRITE
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
-{
-    // TODO
+{   
 
+    unsigned char buff[] = malloc(bufSize);
+
+    memcpy( buff, buf, bufSize );
+
+    unsigned char *frame=malloc(bufSize+6);
+
+    unsigned char frame_number_aux=frame_number==0?C_Info0:C_Info1;
+    frame[0]=FLAG;
+    frame[1]=A_SENDER;
+    frame[2]=frame_number_aux;
+    frame[3]=A_SENDER^frame_number_aux;
+
+    unsigned char bcc2=buff[0];
+
+    u_int32_t extra_buffing_bytes=0;
+
+    for(int i=1;i<bufSize;i++){
+        bcc2^=buff[i];
+    }
+
+    for(int i=0;i<(bufSize+extra_buffing_bytes);i++){
+        if(buff[i]==FLAG){
+
+            extra_buffing_bytes++;
+            
+            frame=realloc(frame,bufSize + extra_buffing_bytes +6);
+            
+            frame[i + 4 ]=0x7D;
+
+            i++;
+
+            buff[i+4]=0x5E;
+
+
+        }
+        else if(buff[i]==0x5D){
+
+            extra_buffing_bytes++;
+
+            frame=realloc(frame,bufSize + extra_buffing_bytes +6);
+
+            
+            frame[i + 4 ]=0x7D;
+            i++;
+            frame[i + 4 ]=0x5D;
+        }else{
+            frame[i+4+extra_buffing_bytes]=buff[i];
+        }
+    }
+
+    frame[bufSize+4+ extra_buffing_bytes]=bcc2;
+    frame[bufSize+5+ extra_buffing_bytes]=FLAG;
+
+    alarmCount=0;
+    int cur_transmissions=0;
+
+    while(cur_transmissions<connectionParameters_global.nRetransmissions){
+
+        cur_transmissions++;
+
+
+        alarmTrigger = FALSE;
+        alarm(connectionParameters_global.timeout);
+
+        int accepted = 0;
+
+        while(alarmTrigger == FALSE && accepted==0){
+            int res = write(fd, frame, bufSize + 6 + extra_buffing_bytes);
+
+            if(res<0){
+                perror("Error writing to serial port");
+                return -1;
+            }
+
+            unsigned char result=Read_Frame_control(fd); 
+
+
+            if(alarmTrigger==TRUE){
+                printf("Timeout\n");
+                continue;
+            }else if(result== C_REJ0 || result == C_REJ1){
+                accepted=-1;
+                
+            }else if(result== C_RR0 || result == C_RR1){
+                accepted=1;
+                frame_number=frame_number==0?1:0;
+            }else continue;
+        }
+        if(accepted==1){
+            break;
+        }
+
+        free(frame);
+        if(accepted==1){
+            return ;
+        }
+
+        return bufSize;
+    
+    }
     return 0;
 }
 
@@ -308,3 +417,66 @@ int llclose(int showStatistics)
     return 1;
 }
 
+
+
+unsigned char Read_Frame_control(int fd){
+    state = START;
+    unsigned char byte='\0';
+    unsigned char ret;
+
+    while(alarmTrigger!=TRUE && state!=STOP_RCV){
+        read(fd,&byte,1);
+        switch(state){
+            case START:
+                if(byte == FLAG){
+                    ret=0x00;
+                    state = FLAG_RCV;
+                }
+                break;
+            case FLAG_RCV:
+                if(byte == A_RECEIVER){
+                    state = A_RCV;
+                }
+                else if(byte == FLAG){
+                    state = FLAG_RCV;
+                }else{
+                    state = START;
+                }
+                break;
+            case A_RCV:
+                if(byte == C_RR0 || byte == C_RR1 || byte == C_REJ0 || byte == C_REJ1){
+                    state = C_RCV;
+                    ret = byte;
+                }
+                else if(byte == FLAG){
+                    state = FLAG_RCV;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case C_RCV:
+                if(byte == (A_RECEIVER^ret)){
+                    state = BCC_OK;
+                }
+                else if(byte == FLAG){
+                    state = FLAG_RCV;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case BCC_OK:
+                if(byte == FLAG){
+                    state = STOP_RCV;
+                }
+                else{
+                    state = START;
+                }
+                break;
+            case STOP_RCV:
+                break;
+        }
+    }
+    return ret;
+}

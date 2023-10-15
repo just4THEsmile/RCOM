@@ -15,5 +15,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     App_info.role = strcmp(role, "rx") == 0 ? LlRx : LlTx;
 
     llopen(App_info);
+    unsigned char buf[2]={0};
+    llwrite(buf, 2);
 
 }
