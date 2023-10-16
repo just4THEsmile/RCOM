@@ -60,7 +60,7 @@ LinkLayer connectionParameters_global;
 enum frame_Sup_state {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP_RCV}; 
 enum frame_Sup_state state;
 
-enum frame_I_state  {START, FLAG_RCV, A_RCV, C_RCV, BCC1_OK,BCC2_OK, STOP_RCV,READING_DATA}; 
+enum frame_I_state  {START, FLAG_RCV, A_RCV, C_RCV,READING_DATA,ESC_on_DATA,LOST_SUP_FRAMES_BBC_OK,LOST_SUP_FRAMES_C_RCV}; 
 
 
 //frame number
@@ -150,6 +150,7 @@ int sendSupFrame(unsigned char A,unsigned char C){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {   
+    alarmCount=0;
     connectionParameters_global = connectionParameters;
 
     fd = connect(connectionParameters);
@@ -165,7 +166,7 @@ int llopen(LinkLayer connectionParameters)
         while(connectionParameters.nRetransmissions!=alarmCount && state!=STOP_RCV ){
             
             printf("Sending SET\n");
-            sendSupFrame(A_SENDER,C_SET);
+            sendSupFrame(A_RECEIVER,C_SET);
             alarmTrigger = FALSE;
             alarm(connectionParameters.timeout);
             state = START;
@@ -179,7 +180,7 @@ int llopen(LinkLayer connectionParameters)
                         }
                         break;
                     case FLAG_RCV:
-                        if(byte == A_RECEIVER){
+                        if(byte == A_SENDER){
                             state = A_RCV;
                         }
                         else if(byte == FLAG){
@@ -200,7 +201,7 @@ int llopen(LinkLayer connectionParameters)
                         }
                         break;
                     case C_RCV:
-                        if(byte == (A_RECEIVER^C_UA)){
+                        if(byte == (A_SENDER^C_UA)){
                             state = BCC_OK;
                         }
                         else if(byte == FLAG){
@@ -237,7 +238,7 @@ int llopen(LinkLayer connectionParameters)
                     }
                     break;
                 case FLAG_RCV:
-                    if(byte == A_SENDER){
+                    if(byte == A_RECEIVER){
                         state = A_RCV;
                     }
                     else if(byte == FLAG){
@@ -258,7 +259,7 @@ int llopen(LinkLayer connectionParameters)
                     }
                     break;
                 case C_RCV:
-                    if(byte == (A_SENDER^C_SET)){
+                    if(byte == (A_RECEIVER^C_SET)){
                         state = BCC_OK;
                     }
                     else if(byte == FLAG){
@@ -281,7 +282,7 @@ int llopen(LinkLayer connectionParameters)
             }
             
         }
-        sendSupFrame(A_RECEIVER,C_UA);
+        sendSupFrame(A_SENDER,C_UA);
 
     }else return -1;
 
@@ -294,53 +295,49 @@ int llopen(LinkLayer connectionParameters)
 int llwrite(const unsigned char *buf, int bufSize)
 {   
 
-    unsigned char buff[] = malloc(bufSize);
-
-    memcpy( buff, buf, bufSize );
-
     unsigned char *frame=malloc(bufSize+6);
 
     unsigned char frame_number_aux=frame_number==0?C_Info0:C_Info1;
     frame[0]=FLAG;
-    frame[1]=A_SENDER;
+    frame[1]=A_RECEIVER;
     frame[2]=frame_number_aux;
-    frame[3]=A_SENDER^frame_number_aux;
+    frame[3]=A_RECEIVER^frame_number_aux;
 
-    unsigned char bcc2=buff[0];
+    unsigned char bcc2=buf[0];
 
     u_int32_t extra_buffing_bytes=0;
 
     for(int i=1;i<bufSize;i++){
-        bcc2^=buff[i];
+        bcc2^=buf[i];
     }
 
-    for(int i=0;i<(bufSize+extra_buffing_bytes);i++){
-        if(buff[i]==FLAG){
+    int j=4;
+    for(int i=0;i<bufSize;i++){
+        if(buf[i]==FLAG){
 
             extra_buffing_bytes++;
             
             frame=realloc(frame,bufSize + extra_buffing_bytes +6);
             
-            frame[i + 4 ]=0x7D;
+            frame[i + j ]=0x7D;
 
-            i++;
+            j++;
 
-            buff[i+4]=0x5E;
+            frame[i+j]=0x5E;
 
 
-        }
-        else if(buff[i]==0x5D){
+        }else if(buf[i]==0x5D){
 
             extra_buffing_bytes++;
 
             frame=realloc(frame,bufSize + extra_buffing_bytes +6);
 
             
-            frame[i + 4 ]=0x7D;
-            i++;
-            frame[i + 4 ]=0x5D;
+            frame[i + j ]=0x7D;
+            j++;
+            frame[i + j ]=0x5D;
         }else{
-            frame[i+4+extra_buffing_bytes]=buff[i];
+            frame[i+j]=buf[i];
         }
     }
 
@@ -349,6 +346,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     alarmCount=0;
     int cur_transmissions=0;
+    int accepted = 0;
 
     while(cur_transmissions<connectionParameters_global.nRetransmissions){
 
@@ -358,7 +356,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         alarmTrigger = FALSE;
         alarm(connectionParameters_global.timeout);
 
-        int accepted = 0;
+        
 
         while(alarmTrigger == FALSE && accepted==0){
             int res = write(fd, frame, bufSize + 6 + extra_buffing_bytes);
@@ -379,22 +377,23 @@ int llwrite(const unsigned char *buf, int bufSize)
                 
             }else if(result== C_RR0 || result == C_RR1){
                 accepted=1;
-                frame_number=frame_number==0?1:0;
+                frame_number=(1+frame_number)%2;
             }else continue;
         }
         if(accepted==1){
             break;
         }
 
-        free(frame);
-        if(accepted==1){
-            return ;
-        }
-
-        return bufSize;
     
     }
-    return 0;
+
+    free(frame);
+    if(accepted==1){
+        return (bufSize +6 +extra_buffing_bytes); ;
+    }else{
+        return -1;
+    }
+
 }
 
 ////////////////////////////////////////////////
@@ -402,9 +401,226 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    // TODO
+    enum frame_I_state I_state= START;
+    unsigned char byte='\0';
+    unsigned char field_C;
 
-    return 0;
+    unsigned char bcc2;
+
+    unsigned char bcc2_check;
+
+    int i=0;
+
+    unsigned char frame_number_aux=frame_number==0?C_Info0:C_Info1;
+    
+
+
+    while(I_state!=STOP_RCV){    
+        read(fd,&byte,1); 
+        switch(I_state){
+            case START:
+                if(byte == FLAG){
+                    I_state = FLAG_RCV;
+                }
+                break;
+            case FLAG_RCV:
+                if(byte == A_RECEIVER){
+                    I_state = A_RCV;
+                }
+                else if(byte == FLAG){
+                    I_state = FLAG_RCV;
+                }else{
+                    I_state = START;
+                }
+                break;
+            case A_RCV:
+                if(byte == C_Info0 || byte == C_Info1){
+                    I_state = C_RCV;
+                    field_C=byte;
+                }
+                else if(byte == FLAG){
+                    I_state = FLAG_RCV;
+                }if(byte == C_DISC || byte == C_SET){
+                    I_state = LOST_SUP_FRAMES_C_RCV;
+                    field_C=byte;
+                }   
+                else{
+                    I_state = START;
+                }
+                break;
+            case C_RCV:
+                if(byte == (A_RECEIVER^field_C)){
+                    I_state = READING_DATA;
+                }
+                else if(byte == FLAG){
+                    I_state = FLAG_RCV;
+                }
+                else{
+                    I_state = START;
+                }
+                break;
+        
+
+            case READING_DATA:
+                
+                if (byte==0x7d){
+                    I_state=ESC_on_DATA;
+                }
+                else if(byte==FLAG){
+                    
+                    packet[i] = '\0';
+                    i--;
+                    bcc2 =packet[0];
+                    i--;
+
+
+                    for(int j=1;j<i;j++){
+                        bcc2_check^=packet[j];
+                    }
+
+                    if(bcc2_check==bcc2){
+                        sendSupFrame(A_SENDER,frame_number==0?C_RR0:C_RR1);
+                        frame_number=(1+frame_number)%2;
+                        return i;
+                    }else {
+                        sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
+                        i=0;
+                        I_state=FLAG_RCV;
+                    }
+
+
+                
+                }else{
+                    packet[i++]=byte;
+
+                }
+                break;
+            case ESC_on_DATA:
+
+                if(byte==0x5E){
+                    packet[i++]=0x7E;
+                    I_state=READING_DATA;
+                }else if(byte==0x5D){
+                    packet[i++]=0x7D;
+                    I_state=READING_DATA;
+                }else if(byte==FLAG){
+                    I_state=FLAG_RCV;
+                    sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
+                }
+                else{
+                    I_state=START;
+                    sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
+                }
+                
+                
+            break;
+            case LOST_SUP_FRAMES_C_RCV:
+                if(byte == (field_C^A_RECEIVER)){
+                    I_state = LOST_SUP_FRAMES_BBC_OK;
+                }
+                else if(byte == FLAG){
+                    I_state = FLAG_RCV;
+                }
+                else{
+                    I_state = START;
+                }
+
+            
+            break;
+
+            case LOST_SUP_FRAMES_BBC_OK:
+                if(byte == FLAG){
+                    if(field_C==C_DISC){
+                        
+
+                        //sending Disc back and waiting for response
+                        alarmCount=0;
+                        
+                        (void)signal(SIGALRM, alarmHandler);
+        
+                        while(connectionParameters_global.nRetransmissions!=alarmCount && state!=STOP_RCV ){
+                            
+                            printf("Sending DISC\n");
+                            sendSupFrame(A_SENDER,C_DISC);
+                            alarmTrigger = FALSE;
+                            alarm(connectionParameters_global.timeout);
+                            state = START;
+                            unsigned char byte='\0';
+                            while(state!=STOP_RCV && !alarmTrigger){ 
+                                read(fd,&byte,1);
+                                switch(state){
+                                    case START:
+                                        if(byte == FLAG){
+                                            state = FLAG_RCV;
+                                        }
+                                        break;
+                                    case FLAG_RCV:
+                                        if(byte == A_RECEIVER){
+                                            state = A_RCV;
+                                        }
+                                        else if(byte == FLAG){
+                                            state = FLAG_RCV;
+                                        }else{
+                                            state = START;
+                                        }
+                                        break;
+                                    case A_RCV:
+                                        if(byte == C_UA){
+                                            state = C_RCV;
+                                        }
+                                        else if(byte == FLAG){
+                                            state = FLAG_RCV;
+                                        }
+                                        else{
+                                            state = START;
+                                        }
+                                        break;
+                                    case C_RCV:
+                                        if(byte == (A_RECEIVER^C_UA)){
+                                            state = BCC_OK;
+                                        }
+                                        else if(byte == FLAG){
+                                            state = FLAG_RCV;
+                                        }
+                                        else{
+                                            state = START;
+                                        }
+                                        break;
+                                    case BCC_OK:
+                                        if(byte == FLAG){
+                                            state = STOP_RCV;
+                                        }
+                                        else{
+                                            state = START;
+                                        }
+                                        break;
+                                    case STOP_RCV:
+                                        break;
+                                }
+                            }
+                        }
+                        if(state==STOP_RCV) return close(fd);
+
+                        I_state = START;
+                    }
+                    else if(field_C==C_SET){
+                        sendSupFrame(A_SENDER,C_UA);
+                        I_state = START;
+                    }
+                    else{
+                        I_state = START;
+                    }
+
+                }
+                else{
+                    I_state = START;
+                }
+                break;
+
+        }
+    }    
+
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -412,9 +628,74 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose(int showStatistics)
 {
-    // TODO
+    alarmCount=0;
+    (void)signal(SIGALRM, alarmHandler);
+        
+    while(connectionParameters_global.nRetransmissions!=alarmCount && state!=STOP_RCV ){
+        
+        printf("Sending SET\n");
+        sendSupFrame(A_RECEIVER,C_DISC);
+        alarmTrigger = FALSE;
+        alarm(connectionParameters_global.timeout);
+        state = START;
+        unsigned char byte='\0';
+        while(state!=STOP_RCV && !alarmTrigger){ 
+            read(fd,&byte,1);
+            switch(state){
+                case START:
+                    if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }
+                    break;
+                case FLAG_RCV:
+                    if(byte == A_SENDER){
+                        state = A_RCV;
+                    }
+                    else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }else{
+                        state = START;
+                    }
+                    break;
+                case A_RCV:
+                    if(byte == C_DISC){
+                        state = C_RCV;
+                    }
+                    else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }
+                    else{
+                        state = START;
+                    }
+                    break;
+                case C_RCV:
+                    if(byte == (A_SENDER^C_DISC)){
+                        state = BCC_OK;
+                    }
+                    else if(byte == FLAG){
+                        state = FLAG_RCV;
+                    }
+                    else{
+                        state = START;
+                    }
+                    break;
+                case BCC_OK:
+                    if(byte == FLAG){
+                        state = STOP_RCV;
+                    }
+                    else{
+                        state = START;
+                    }
+                    break;
+                case STOP_RCV:
+                    break;
+            }
+        }
+    }
 
-    return 1;
+    sendSupFrame(A_RECEIVER,C_UA);
+    if(state==STOP_RCV) return close(fd);
+    return -1;
 }
 
 
@@ -434,7 +715,7 @@ unsigned char Read_Frame_control(int fd){
                 }
                 break;
             case FLAG_RCV:
-                if(byte == A_RECEIVER){
+                if(byte == A_SENDER){
                     state = A_RCV;
                 }
                 else if(byte == FLAG){
@@ -456,7 +737,7 @@ unsigned char Read_Frame_control(int fd){
                 }
                 break;
             case C_RCV:
-                if(byte == (A_RECEIVER^ret)){
+                if(byte == (A_SENDER^ret)){
                     state = BCC_OK;
                 }
                 else if(byte == FLAG){
