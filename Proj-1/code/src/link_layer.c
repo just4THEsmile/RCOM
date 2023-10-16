@@ -2,7 +2,7 @@
 
 #include "link_layer.h"
 
-//imports
+// imports
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,46 +32,51 @@
 #define C_Info0 0x00
 #define C_Info1 0x40
 
-
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
-
-//alarm variables
+// alarm variables
 int alarmTrigger = FALSE;
 int alarmCount = 0;
-int timeout=0;
+int timeout = 0;
 
-//port config
+// port config
 struct termios oldtio;
 struct termios newtio;
 
-//port number
+// port number
 int fd;
 
-//serial portName
+// serial portName
 const char *serialPortName;
 
-//frame state
-enum frame_state {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP_RCV}; 
+// frame state
+enum frame_state
+{
+    START,
+    FLAG_RCV,
+    A_RCV,
+    C_RCV,
+    BCC_OK,
+    STOP_RCV
+};
 enum frame_state state;
 
-
-
-//Alarm Handler
-void alarmHandler(int signal){
-    alarmTrigger= TRUE;
+// Alarm Handler
+void alarmHandler(int signal)
+{
+    alarmTrigger = TRUE;
     alarmCount++;
     printf("Alarm trying #%d\n", alarmCount);
-    }
+}
 
-
-//connect to serial port
-int connect(LinkLayer connectionParameters){
+// connect to serial port
+int connect(LinkLayer connectionParameters)
+{
     // Open serial port device for reading and writing, and not as controlling tty
     // because we don't want to get killed if linenoise sends CTRL-C.
     fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY);
-    //checking if port is open
+    // checking if port is open
     if (fd < 0)
     {
         perror(serialPortName);
@@ -113,167 +118,201 @@ int connect(LinkLayer connectionParameters){
         perror("tcsetattr");
         exit(-1);
     }
-    
-    return fd;
-} 
 
-//send supervisory frame
-int sendSupFrame(unsigned char A,unsigned char C){
-    unsigned char buf[5]={0};
+    return fd;
+}
+
+// send supervisory frame
+int sendSupFrame(unsigned char A, unsigned char C)
+{
+    unsigned char buf[5] = {0};
     buf[0] = FLAG;
     buf[1] = A;
     buf[2] = C;
-    buf[3] = A^C;
+    buf[3] = A ^ C;
     buf[4] = FLAG;
-    int res = write(fd,buf,5);
-    printf(" send sup frame   Sent %d bytes\n",res);
-    if(res<0){
+    int res = write(fd, buf, 5);
+    printf(" send sup frame   Sent %d bytes\n", res);
+    if (res < 0)
+    {
         perror("Error writing to serial port");
         return -1;
-    }   
-    return 0;    
-
-}   
+    }
+    return 0;
+}
 
 ////////////////////////////////////////////////
 // LLOPEN
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
-{   
-    
+{
 
     int fd = connect(connectionParameters);
-    printf("llopen with fd: %d\n",fd);
-    if (fd < 0) {
+    printf("llopen with fd: %d\n", fd);
+    if (fd < 0)
+    {
         printf("Error connecting to serial port");
         return -1;
-        }
-    if(connectionParameters.role == LlTx){
+    }
+    if (connectionParameters.role == LlTx)
+    {
 
         (void)signal(SIGALRM, alarmHandler);
-        
-        while(connectionParameters.nRetransmissions!=alarmCount && state!=STOP_RCV ){
-            
+
+        while (connectionParameters.nRetransmissions != alarmCount && state != STOP_RCV)
+        {
+
             printf("Sending SET\n");
-            sendSupFrame(A_SENDER,C_SET);
+            sendSupFrame(A_SENDER, C_SET);
             alarmTrigger = FALSE;
             alarm(connectionParameters.timeout);
             state = START;
-            unsigned char byte='\0';
-            while(state!=STOP_RCV && !alarmTrigger){ 
-                read(fd,&byte,1);
-                switch(state){
-                    case START:
-                        if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }
-                        break;
-                    case FLAG_RCV:
-                        if(byte == A_RECEIVER){
-                            state = A_RCV;
-                        }
-                        else if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }else{
-                            state = START;
-                        }
-                        break;
-                    case A_RCV:
-                        if(byte == C_UA){
-                            state = C_RCV;
-                        }
-                        else if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }
-                        else{
-                            state = START;
-                        }
-                        break;
-                    case C_RCV:
-                        if(byte == (A_RECEIVER^C_UA)){
-                            state = BCC_OK;
-                        }
-                        else if(byte == FLAG){
-                            state = FLAG_RCV;
-                        }
-                        else{
-                            state = START;
-                        }
-                        break;
-                    case BCC_OK:
-                        if(byte == FLAG){
-                            state = STOP_RCV;
-                        }
-                        else{
-                            state = START;
-                        }
-                        break;
-                    case STOP_RCV:
-                        break;
-                }
-            }
-        }
-
-    }else if(connectionParameters.role == LlRx){
-        state = START;
-        unsigned char byte;
-
-        while(state!=STOP_RCV){
-            read(fd,&byte,1);
-            switch(state){
+            unsigned char byte = '\0';
+            while (state != STOP_RCV && !alarmTrigger)
+            {
+                read(fd, &byte, 1);
+                switch (state)
+                {
                 case START:
-                    if(byte == FLAG){
+                    if (byte == FLAG)
+                    {
                         state = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
-                    if(byte == A_SENDER){
+                    if (byte == A_RECEIVER)
+                    {
                         state = A_RCV;
                     }
-                    else if(byte == FLAG){
+                    else if (byte == FLAG)
+                    {
                         state = FLAG_RCV;
-                    }else{
+                    }
+                    else
+                    {
                         state = START;
                     }
                     break;
                 case A_RCV:
-                    if(byte == C_SET){
+                    if (byte == C_UA)
+                    {
                         state = C_RCV;
                     }
-                    else if(byte == FLAG){
+                    else if (byte == FLAG)
+                    {
                         state = FLAG_RCV;
                     }
-                    else{
+                    else
+                    {
                         state = START;
                     }
                     break;
                 case C_RCV:
-                    if(byte == (A_SENDER^C_SET)){
+                    if (byte == (A_RECEIVER ^ C_UA))
+                    {
                         state = BCC_OK;
                     }
-                    else if(byte == FLAG){
+                    else if (byte == FLAG)
+                    {
                         state = FLAG_RCV;
                     }
-                    else{
+                    else
+                    {
                         state = START;
                     }
                     break;
                 case BCC_OK:
-                    if(byte == FLAG){
+                    if (byte == FLAG)
+                    {
                         state = STOP_RCV;
                     }
-                    else{
+                    else
+                    {
                         state = START;
                     }
                     break;
                 case STOP_RCV:
                     break;
+                }
             }
-            
         }
-        sendSupFrame(A_RECEIVER,C_UA);
+    }
+    else if (connectionParameters.role == LlRx)
+    {
+        state = START;
+        unsigned char byte;
 
-    }else return -1;
+        while (state != STOP_RCV)
+        {
+            read(fd, &byte, 1);
+            switch (state)
+            {
+            case START:
+                if (byte == FLAG)
+                {
+                    state = FLAG_RCV;
+                }
+                break;
+            case FLAG_RCV:
+                if (byte == A_SENDER)
+                {
+                    state = A_RCV;
+                }
+                else if (byte == FLAG)
+                {
+                    state = FLAG_RCV;
+                }
+                else
+                {
+                    state = START;
+                }
+                break;
+            case A_RCV:
+                if (byte == C_SET)
+                {
+                    state = C_RCV;
+                }
+                else if (byte == FLAG)
+                {
+                    state = FLAG_RCV;
+                }
+                else
+                {
+                    state = START;
+                }
+                break;
+            case C_RCV:
+                if (byte == (A_SENDER ^ C_SET))
+                {
+                    state = BCC_OK;
+                }
+                else if (byte == FLAG)
+                {
+                    state = FLAG_RCV;
+                }
+                else
+                {
+                    state = START;
+                }
+                break;
+            case BCC_OK:
+                if (byte == FLAG)
+                {
+                    state = STOP_RCV;
+                }
+                else
+                {
+                    state = START;
+                }
+                break;
+            case STOP_RCV:
+                break;
+            }
+        }
+        sendSupFrame(A_RECEIVER, C_UA);
+    }
+    else
+        return -1;
 
     return EXIT_SUCCESS;
 }
@@ -303,8 +342,25 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose(int showStatistics)
 {
-    // TODO
+    // Function to close the connection
+    int closeConnection(int showStatistics)
+    {
+        // Check if it's a transmitter or receiver
+        if (connectionParameters_cpy.role == LlTx)
+        {
+            printf("Transmitter Closing...\n");
+            unsigned char tx_cmd[5] = {FLAG, ADDR_ER, DISC, BCC(ADDR_ER, DISC), FLAG};
 
-    return 1;
+            if (sendAndWaitMessage(fd, tx_cmd, 5) < 0)
+            {
+                printf("Transmission of DISC command failed\n");
+                return -1;
+            }
+
+            printf("Transmitter sending final UA to close\n");
+            unsigned char ua_cmd[5] = {FLAG, ADDR_ER, UA, BCC(ADDR_ER, UA), FLAG};
+            write(fd, ua_cmd, 5);
+            sleep(1);
+        }
+    }
 }
-
