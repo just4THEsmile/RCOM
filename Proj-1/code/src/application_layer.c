@@ -2,6 +2,8 @@
 
 #include "application_layer.h"
 #include "link_layer.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
@@ -14,8 +16,20 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     strcpy(App_info.serialPort, serialPort);
     App_info.role = strcmp(role, "rx") == 0 ? LlRx : LlTx;
 
-    llopen(App_info);
-    unsigned char buf[2]={0};
-    llwrite(buf, 2);
+    int fd=llopen(App_info);
+    if(fd<0){
+        printf("Error opening connection\n");
+        return;
+    }
+
+
+    if(App_info.role==LlTx){
+
+        FILE *file = fopen(filename, "rb");
+
+        ftell(fp)
+        
+    }
+    
 
 }
