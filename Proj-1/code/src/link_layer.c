@@ -362,5 +362,17 @@ int llclose(int showStatistics)
             write(fd, ua_cmd, 5);
             sleep(1);
         }
+        // For the receiver
+        if (connectionParameters_cpy.role == LlRx)
+        {
+            printf("Receiver Closing...\n");
+            int response = readMessageWithResponse(fd);
+
+            if (response < 0)
+            {
+                printf("Receiver failed to read the message\n");
+                return -1;
+            }
+        }
     }
 }
