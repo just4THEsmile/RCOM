@@ -576,13 +576,10 @@ int llread(unsigned char *packet)
                 }else if(byte==0x5D){
                     packet[i++]=0x7D;
                     I_state=READING_DATA;
-                }else if(byte==FLAG){
-                    I_state=FLAG_I_RCV;
-                    sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
-                }
-                else{
+                }else{
                     I_state=START_I;
                     sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
+                    i=0;
                 }
                 
                 
@@ -708,7 +705,8 @@ int llread(unsigned char *packet)
 // LLCLOSE
 ////////////////////////////////////////////////
 int llclose(int showStatistics)
-{
+{   
+    printf("llclose\n\n\n\n");
     alarmCount=0;
     (void)signal(SIGALRM, alarmHandler);
     state=START;    

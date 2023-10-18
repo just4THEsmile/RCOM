@@ -63,7 +63,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         packet[4]=0x05;
 
 
-        
+        llwrite(packet,5);
 
         llclose(1);
 
@@ -113,6 +113,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         for(int i=0;i<packet_len;i++){
             printf("0x%x ",packet[i]);
         }
+        llread(packet);
         
     }
 }
