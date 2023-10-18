@@ -198,6 +198,7 @@ int sendSupFrame(unsigned char A,unsigned char C){
     buf[2] = C;
     buf[3] = A^C;
     buf[4] = FLAG;
+    printf("Sending frame on port  %d\n",fd);
     int res = write(fd,buf,5);
     printf(" send sup frame   Sent %d bytes\n",res);
     if(res<0){
@@ -349,6 +350,7 @@ int llopen(LinkLayer connectionParameters)
 
     }else return -1;
 
+    printf("Connection established\n");
     return EXIT_SUCCESS;
 }
 
@@ -357,7 +359,7 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {   
-
+    printf("llwrite\n");
     unsigned char *frame=malloc(bufSize+6);
 
     unsigned char frame_number_aux=frame_number==0?C_Info0:C_Info1;
@@ -421,7 +423,8 @@ int llwrite(const unsigned char *buf, int bufSize)
 
         
 
-        while(alarmTrigger == FALSE && accepted==0){
+        while(alarmTrigger == FALSE && accepted!=1){
+            printf("Sending frame\n");
             int res = write(fd, frame, bufSize + 6 + extra_buffing_bytes);
 
             if(res<0){
@@ -436,9 +439,11 @@ int llwrite(const unsigned char *buf, int bufSize)
                 printf("Timeout\n");
                 continue;
             }else if(result== C_REJ0 || result == C_REJ1){
+                printf("Frame rejected\n");
                 accepted=-1;
                 
             }else if(result== C_RR0 || result == C_RR1){
+                printf("Frame accepted\n");
                 accepted=1;
                 frame_number=(1+frame_number)%2;
             }else continue;
@@ -483,10 +488,12 @@ int llread(unsigned char *packet)
         switch(I_state){
             case START_I:
                 if(byte == FLAG){
+                    printf("FLAG\n");
                     I_state = FLAG_I_RCV;
                 }
                 break;
             case FLAG_I_RCV:
+            printf("FLAG_I_RCV 0x%x\n",byte);
                 if(byte == A_RECEIVER){
                     I_state = A_I_RCV;
                 }
@@ -497,13 +504,14 @@ int llread(unsigned char *packet)
                 }
                 break;
             case A_I_RCV:
+                printf("A_I_RCV 0x%x\n",byte);
                 if(byte == C_Info0 || byte == C_Info1){
+                    printf("Info0\n");
                     I_state = C_I_RCV;
                     field_C=byte;
-                }
-                else if(byte == FLAG){
+                }else if(byte == FLAG){
                     I_state = FLAG_I_RCV;
-                }if(byte == C_DISC || byte == C_SET){
+                }else if(byte == C_DISC || byte == C_SET){
                     I_state = LOST_SUP_FRAMES_C_RCV;
                     field_C=byte;
                 }   
@@ -512,6 +520,7 @@ int llread(unsigned char *packet)
                 }
                 break;
             case C_I_RCV:
+                printf("C_I_RCV 0x%x\n",byte);
                 if(byte == (A_RECEIVER^field_C)){
                     I_state = READING_DATA;
                 }
@@ -525,27 +534,28 @@ int llread(unsigned char *packet)
         
 
             case READING_DATA:
-                
+                printf("READING DATA 0x%x\n",byte);
                 if (byte==0x7d){
                     I_state=ESC_on_DATA;
                 }
                 else if(byte==FLAG){
                     
-                    packet[i] = '\0';
                     i--;
-                    bcc2 =packet[0];
-                    i--;
+                    bcc2 =packet[i];
+                    packet[i]='\0';
 
 
-                    for(int j=1;j<i;j++){
+                    for(int j=0;j<i;j++){
                         bcc2_check^=packet[j];
                     }
 
                     if(bcc2_check==bcc2){
+                        printf("BCC2 OK\n");
                         sendSupFrame(A_SENDER,frame_number==0?C_RR0:C_RR1);
                         frame_number=(1+frame_number)%2;
                         return i;
                     }else {
+                        printf("BCC2 error\n");
                         sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
                         i=0;
                         I_state=FLAG_I_RCV;
@@ -559,7 +569,7 @@ int llread(unsigned char *packet)
                 }
                 break;
             case ESC_on_DATA:
-
+                printf("ESC on DATA 0x%x\n",byte);
                 if(byte==0x5E){
                     packet[i++]=0x7E;
                     I_state=READING_DATA;
@@ -592,6 +602,7 @@ int llread(unsigned char *packet)
             break;
 
             case LOST_SUP_FRAMES_BBC_OK:
+                printf("LOST_SUP_FRAMES_BBC_OK 0x%x\n",byte);
                 if(byte == FLAG){
                     if(field_C==C_DISC){
                         
@@ -599,7 +610,7 @@ int llread(unsigned char *packet)
                         alarmCount=0;
                         
                         (void)signal(SIGALRM, alarmHandler);
-        
+                        state=START;
                         while(connectionParameters_global.nRetransmissions!=alarmCount && state!=STOP_RCV ){
                             
                             printf("Sending DISC\n");
@@ -659,9 +670,11 @@ int llread(unsigned char *packet)
                                     case STOP_RCV:
                                         break;
                                 }
+                                byte='\0';
                             }
                         }
-                    if(state==STOP_RCV) return close(fd);
+                        printf("Connection closed\n");
+                    if(state==STOP_RCV) return 0;
 
                     I_state = START_I;
                 }
@@ -685,6 +698,7 @@ int llread(unsigned char *packet)
             
 
         }
+        byte='\0';
     }    
 
     return -1;
@@ -697,10 +711,10 @@ int llclose(int showStatistics)
 {
     alarmCount=0;
     (void)signal(SIGALRM, alarmHandler);
-        
+    state=START;    
     while(connectionParameters_global.nRetransmissions!=alarmCount && state!=STOP_RCV ){
         
-        printf("Sending SET\n");
+        printf("Sending DISC\n");
         sendSupFrame(A_RECEIVER,C_DISC);
         alarmTrigger = FALSE;
         alarm(connectionParameters_global.timeout);
@@ -711,10 +725,12 @@ int llclose(int showStatistics)
             switch(state){
                 case START:
                     if(byte == FLAG){
+                        printf("FLAG\n");
                         state = FLAG_RCV;
                     }
                     break;
                 case FLAG_RCV:
+                    printf("FLAG_RCV 0x%x\n",byte);
                     if(byte == A_SENDER){
                         state = A_RCV;
                     }
@@ -725,6 +741,7 @@ int llclose(int showStatistics)
                     }
                     break;
                 case A_RCV:
+                    printf("A_RCV 0x%x\n",byte);
                     if(byte == C_DISC){
                         state = C_RCV;
                     }
@@ -736,6 +753,7 @@ int llclose(int showStatistics)
                     }
                     break;
                 case C_RCV:
+                    printf("C_RCV 0x%x\n",byte);
                     if(byte == (A_SENDER^C_DISC)){
                         state = BCC_OK;
                     }
@@ -758,9 +776,11 @@ int llclose(int showStatistics)
                     break;
             }
         }
+        byte='\0';
     }
-
+    printf("Sending UA\n");
     sendSupFrame(A_RECEIVER,C_UA);
+    printf("Connection closed %d\n",state);
     if(state==STOP_RCV) return close(fd);
     return -1;
 }
