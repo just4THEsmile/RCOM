@@ -36,15 +36,21 @@ int get_Data_Packet_Info(unsigned char *packet,unsigned char *buf){
 int build_Control_Packet(unsigned char C_value,const char *filename,long int file_len ,unsigned char *packet){
     
 
-    int packet_len=5+strlen(filename) + ceil((double)(file_len/8.0));
+    int packet_len=5+strlen(filename) + ceil(log2f((float)file_len)/8.0);
 
     packet[0]=C_value;
 
 
-    packet[1]=0x00;                                                     //Type
-    packet[2]=ceil((double)(file_len/8.0));                             //Length
+    packet[1]=0x00;                                                             //Type
+    packet[2]=ceil(log2f((float)file_len)/8);                                  //Length
     printf("File Length: %ld\n",file_len);
-    packet[3]=file_len;                                                 //Content
+    printf(" File Length len: %d\n",packet[2]);
+    
+    for(int j = 0;j<packet[2];j++){
+        //printf(" Logic  0x%lx ",0xFF & file_len);
+        packet[2-j+packet[2]]=0xFF & file_len;
+        file_len=file_len>>8;
+    }                                                                           //Content
     int i=3+packet[2];
 
     packet[i++]=0x01;
@@ -65,9 +71,13 @@ int get_Control_Packet_Info(unsigned char *packet,unsigned char *C_value,char *f
     int i=2;
     int file_len_len=packet[i++];
     printf("File Length Length: %d\n\n\n",file_len_len);
-    memcpy(file_len,&packet[i],file_len_len);
-    file_len[file_len_len]='\0';
-    printf("Filename Length: %ld\n\n\n",*file_len);
+
+    for(int j = 0;j<file_len_len;j++){
+        //printf(" Logic  0x%f ",packet[2+file_len_len-j]*pow(256,j));
+        *file_len+=packet[2+file_len_len-j]*pow(256,j);
+    }
+    printf("File Length: %ld\n",*file_len);
+
     i+=file_len_len;
     i++;
     int filename_len=packet[i++];
@@ -102,7 +112,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         unsigned char packet[MAX_PAYLOAD_SIZE];
         packet[0]='\0';
 
-        int packet_len=build_Control_Packet(0x02,filename,5,packet);
+        int packet_len=build_Control_Packet(0x02,filename,1000,packet);
         
         printf("Control Packet Length: %d\n",packet_len);
         for(int i=0;i<packet_len;i++){
@@ -132,29 +142,29 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         llwrite(packet,packet_len);
 
         llclose(1);
-
-        /*
+/*
+        //-----------------------------
         long int len;
 
         FILE *file = fopen(filename, "rb");
 
         fseek(file, 0, SEEK_END);
         len = ftell(file);
+        fseek(file, 0, SEEK_SET);
         long int bytes_left=len;
 
         int packet_len=build_Control_Packet(0x02,filename,len,packet);
-
+        llwrite(packet,packet_len);
 
 
         while(bytes_left>0){
             unsigned char buf[MAX_PAYLOAD_SIZE];
-            if(bytes_left<MAX_PAYLOAD_SIZE){
+            if(bytes_left<MAX_PAYLOAD_SIZE-3){
                 fread(buf, 1, bytes_left, file);
                 if(llwrite(buf, bytes_left)<0) printf("ERROR on WRITE");
                 bytes_left=0;
-            }
-            else{
-                fread(buf, 1, MAX_PAYLO        get_Control_Packet_Info(packet,)AD_SIZE, file);
+            }else{
+                fread(buf, 1, MAX_PAYLOAD_SIZE-3, file);
                 if(llwrite(buf, MAX_PAYLOAD_SIZE)<0) printf("ERROR on WRITE");
                 bytes_left-=MAX_PAYLOAD_SIZE;
             }
@@ -162,8 +172,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         }
         fclose(file);
         llclose(1);
-    
     */
+    //-----------------------------
 
     }else{
 
@@ -204,14 +214,18 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         printf("\n");
 
         
-
-
-
-        packet[0]='\0';
+        printf("what\n");
 
         unsigned char buff[MAX_PAYLOAD_SIZE];
-        buff[0]='\0';
-        get_Data_Packet_Info(packet,buff);
+
+         packet_len=get_Data_Packet_Info(packet,buff);
+
+        buff[packet_len]='\0';
+        for(int i=0;i<packet_len;i++){
+            printf("0x%x ",buff[i]);
+        }
+        printf("what packet_len %d\n",packet_len);
+
 
         llread(packet);
     }
