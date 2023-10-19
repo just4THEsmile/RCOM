@@ -538,14 +538,17 @@ int llread(unsigned char *packet)
                 if (byte==0x7d){
                     I_state=ESC_on_DATA;
                 }
-                else if(byte==FLAG){
-                    
-                    i--;
-                    bcc2 =packet[i];
+                else if(byte==FLAG ){
+                    if(i>=MAX_PAYLOAD_SIZE) printf("max size\n");
+                    else{
+                        
+                        i--;
+                        bcc2=packet[i];
+                    }
                     packet[i]='\0';
 
-
-                    for(int j=0;j<i;j++){
+                    bcc2_check=packet[0];
+                    for(int j=1;j<i;j++){
                         bcc2_check^=packet[j];
                     }
 
@@ -555,7 +558,7 @@ int llread(unsigned char *packet)
                         frame_number=(1+frame_number)%2;
                         return i;
                     }else {
-                        printf("BCC2 error\n");
+                        printf("BCC2 error %x\n",bcc2_check);
                         sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
                         i=0;
                         I_state=FLAG_I_RCV;
@@ -563,6 +566,8 @@ int llread(unsigned char *packet)
 
 
                 
+                }else if(i>=MAX_PAYLOAD_SIZE){
+                    bcc2 =byte;
                 }else{
                     packet[i++]=byte;
 
@@ -773,8 +778,8 @@ int llclose(int showStatistics)
                 case STOP_RCV:
                     break;
             }
+            byte='\0';
         }
-        byte='\0';
     }
     printf("Sending UA\n");
     sendSupFrame(A_RECEIVER,C_UA);
