@@ -235,7 +235,7 @@ int llopen(LinkLayer connectionParameters)
             alarm(connectionParameters.timeout);
             state = START;
             unsigned char byte='\0';
-            while(state!=STOP_RCV && !alarmTrigger){ 
+            while(!alarmTrigger){ 
                 read(fd,&byte,1);
                 switch(state){
                     case START:
@@ -284,10 +284,12 @@ int llopen(LinkLayer connectionParameters)
                         }
                         break;
                     case STOP_RCV:
+                        return fd;
                         break;
                 }
             }
         }
+        return -1;
 
     }else if(connectionParameters.role == LlRx){
         state = START;
