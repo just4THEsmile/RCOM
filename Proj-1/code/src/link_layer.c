@@ -391,7 +391,7 @@ int llwrite(const unsigned char *buf, int bufSize)
             frame[i+j]=0x5E;
 
 
-        }else if(buf[i]==0x5D){
+        }else if(buf[i]==0x7D){
 
             extra_buffing_bytes++;
 
@@ -408,6 +408,11 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     frame[bufSize+4+ extra_buffing_bytes]=bcc2;
     frame[bufSize+5+ extra_buffing_bytes]=FLAG;
+    printf("Frame:      ");
+    for(int i=0;i<bufSize+6+extra_buffing_bytes;i++){
+        printf("0x%x ",frame[i]);
+    }
+    printf("\n");
 
     alarmCount=0;
     int cur_transmissions=0;
@@ -457,7 +462,7 @@ int llwrite(const unsigned char *buf, int bufSize)
 
     free(frame);
     if(accepted==1){
-        return (bufSize +6 +extra_buffing_bytes); ;
+        return (bufSize +6 +extra_buffing_bytes); 
     }else{
         return -1;
     }
@@ -534,8 +539,7 @@ int llread(unsigned char *packet)
         
 
             case READING_DATA:
-                printf("READING DATA 0x%x\n",byte);
-                if (byte==0x7d){
+                if (byte==0x7D){
                     I_state=ESC_on_DATA;
                 }
                 else if(byte==FLAG ){
@@ -567,6 +571,7 @@ int llread(unsigned char *packet)
 
                 
                 }else if(i>=MAX_PAYLOAD_SIZE){
+                    printf("max size\n");
                     bcc2 =byte;
                 }else{
                     packet[i++]=byte;

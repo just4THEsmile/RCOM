@@ -7,24 +7,24 @@
 #include <string.h>
 
 #include <math.h>
+#include<unistd.h>
 
 
 
 
 int build_Data_Packet(unsigned char *buf,int bufSize,unsigned char *packet){
     packet[0]=0x01;
-    packet[1]=0x0;
-    packet[2]=0x0;
-    packet[1]=ceil(bufSize/(8*256));
-    packet[2]=bufSize%(8*256);
+    packet[1]=0x00;
+    packet[2]=0x00;
+    packet[1]=ceil(bufSize/(256));
+    packet[2]=bufSize%(256);
     memcpy(&packet[3],buf,bufSize);
     return bufSize+3;
 }
 
 int get_Data_Packet_Info(unsigned char *packet,unsigned char *buf){
-    if(packet[0]!=0x01) return -1;
     int i=1;
-    int bufSize=packet[i++]*256;
+    int bufSize=((int)packet[i++])*256;
     bufSize+=packet[i++];
     memcpy(buf,&packet[i],bufSize);
     return bufSize;
@@ -106,12 +106,19 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         return;
     }
 
+    unsigned char* packet = (unsigned char*) malloc(sizeof(unsigned char)*MAX_PAYLOAD_SIZE);
+
+    memset(packet,0,MAX_PAYLOAD_SIZE);
+
+    unsigned char* buf = (unsigned char*) malloc(sizeof(unsigned char)*MAX_PAYLOAD_SIZE);
+
+
+
 
     if(App_info.role==LlTx){
 
-        unsigned char packet[MAX_PAYLOAD_SIZE];
-        packet[0]='\0';
 
+        /*
         int packet_len=build_Control_Packet(0x02,filename,1000,packet);
         
         printf("Control Packet Length: %d\n",packet_len);
@@ -141,44 +148,127 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
         llwrite(packet,packet_len);
 
-        llclose(1);
-/*
+        llclose(1);*/
+
         //-----------------------------
         long int len;
+        system("ls");
 
-        FILE *file = fopen(filename, "rb");
+        FILE *file = fopen(filename, "rb+");
+        if(file==NULL){
+            printf("Error opening file\n");
+            return;
+        }
+        printf("Filename: %s\n",filename);
+
+        int begin = ftell(file);
 
         fseek(file, 0, SEEK_END);
+
         len = ftell(file);
-        fseek(file, 0, SEEK_SET);
+
+        fseek(file, begin, SEEK_SET);
         long int bytes_left=len;
+
+        printf("File Length: %ld\n",bytes_left);
+        
 
         int packet_len=build_Control_Packet(0x02,filename,len,packet);
         llwrite(packet,packet_len);
+        printf("Control Packet Length: %d\n",packet_len);
 
-
-        while(bytes_left>0){
-            unsigned char buf[MAX_PAYLOAD_SIZE];
-            if(bytes_left<MAX_PAYLOAD_SIZE-3){
+        int written;
+        while(bytes_left>0){   
+            memset(buf,0,MAX_PAYLOAD_SIZE);
+            if(bytes_left<(MAX_PAYLOAD_SIZE-3)){
                 fread(buf, 1, bytes_left, file);
-                if(llwrite(buf, bytes_left)<0) printf("ERROR on WRITE");
+                printf("bytes_left: %ld\n",bytes_left);
+
+                packet_len=build_Data_Packet(buf, bytes_left, packet);
+                printf("Data Packet Length: %d\n",packet_len);
+
+                if((written =llwrite(packet,packet_len))<0) printf("ERROR on WRITE");
+
+                printf("Written: %d\n",written);
                 bytes_left=0;
+                printf("bytes_left: %ld\n",bytes_left);
             }else{
                 fread(buf, 1, MAX_PAYLOAD_SIZE-3, file);
-                if(llwrite(buf, MAX_PAYLOAD_SIZE)<0) printf("ERROR on WRITE");
-                bytes_left-=MAX_PAYLOAD_SIZE;
+
+                packet_len=build_Data_Packet(buf, (MAX_PAYLOAD_SIZE-3), packet);
+
+                printf("Data Packet Length: %d\n",packet_len);
+                for(int i=0;i<packet_len;i++){
+                    printf("0x%x ",packet[i]);
+                }printf("\n");
+
+                
+                if((written =llwrite(packet,packet_len))<0) printf("ERROR on WRITE");
+                printf("Written: %d\n",written);
+
+                bytes_left-=(MAX_PAYLOAD_SIZE-3);
+                printf("bytes_left: %ld\n",bytes_left);
             }
 
         }
         fclose(file);
         llclose(1);
-    */
+
     //-----------------------------
 
     }else{
-
-
         unsigned char packet[MAX_PAYLOAD_SIZE];
+        memset(packet,0,MAX_PAYLOAD_SIZE);
+
+        llread(packet);
+
+        if(packet[0]==0x02){
+            printf("Control Packet\n");
+        }else{
+            printf("Not a Control Packet\n");
+            return;
+        }
+
+        unsigned char C_fag;
+        char name[256];
+        long int file_len;
+
+        get_Control_Packet_Info(packet,&C_fag,name,&file_len);
+
+        memset(packet,0,MAX_PAYLOAD_SIZE);
+
+        char* path= (char*) malloc(50);
+
+        strcat(path,"new/");
+        strcat(path,filename);
+
+        printf("path:%s  \n",path);
+
+
+        FILE* new_file = fopen(path,"wb+");
+        int packet_len;
+        int data_len;
+
+        unsigned char buf[MAX_PAYLOAD_SIZE];
+        memset(buf,0,MAX_PAYLOAD_SIZE);
+        int readed;
+
+
+        while((readed=packet_len=llread(packet))>0){
+            printf("\n\n readed: %d\n\n",readed);
+            if(packet[0]==0x03) continue;
+            else if(packet[0]==0x02) continue;
+
+            data_len=get_Data_Packet_Info(packet,buf);
+            printf("data len : %d\n",data_len);
+            fwrite(buf,sizeof(unsigned char),data_len,new_file);
+            memset(packet,0,MAX_PAYLOAD_SIZE);
+
+        }
+        fclose(new_file);
+
+
+        /*
         int packet_len=llread(packet);
         printf("1 ------- Packet Length: %d\n",packet_len);
         if(packet[0]==0x02){
@@ -227,6 +317,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         printf("what packet_len %d\n",packet_len);
 
 
-        llread(packet);
+        llread(packet);*/
     }
 }
