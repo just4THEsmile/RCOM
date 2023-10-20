@@ -118,7 +118,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
 
     if(App_info.role==LlTx){
-        sleep(10);
 
 
         /*
