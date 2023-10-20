@@ -120,6 +120,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
     if(App_info.role==LlTx){
 
 
+
         /*
         int packet_len=build_Control_Packet(0x02,filename,1000,packet);
         
@@ -172,7 +173,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         fseek(file, begin, SEEK_SET);
         long int bytes_left=len;
 
-        printf("File Length: %ld\n",bytes_left);
+        printf("File Length: %ld\n",len);
+
         
 
         int packet_len=build_Control_Packet(0x02,filename,len,packet);
@@ -222,7 +224,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         unsigned char packet[MAX_PAYLOAD_SIZE];
         memset(packet,0,MAX_PAYLOAD_SIZE);
 
-        llread(packet);
+        if(llread(packet)==0) return;
 
         if(packet[0]==0x02){
             printf("Control Packet\n");
@@ -239,7 +241,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
         memset(packet,0,MAX_PAYLOAD_SIZE);
 
-        char* path= (char*) malloc(50);
+        char* path= (char*) malloc(256);
 
         strcat(path,"new/");
         strcat(path,filename);
@@ -320,5 +322,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
 
         llread(packet);*/
+        free(path);
     }
+    free(buf);
+    free(packet);
 }

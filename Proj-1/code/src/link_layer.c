@@ -407,8 +407,30 @@ int llwrite(const unsigned char *buf, int bufSize)
             frame[i+j]=buf[i];
         }
     }
+    if(bcc2==0x7E){
+            extra_buffing_bytes++;
+            
+            frame=realloc(frame,bufSize + extra_buffing_bytes +6);
+            
+            frame[bufSize+4+ extra_buffing_bytes-1]=0x7D;
 
-    frame[bufSize+4+ extra_buffing_bytes]=bcc2;
+
+            frame[bufSize+4+ extra_buffing_bytes]=0x5E;
+
+    }else if(bcc2==0x7D){
+
+            extra_buffing_bytes++;
+
+            frame=realloc(frame,bufSize + extra_buffing_bytes +6);
+
+            
+            frame[bufSize +4+ extra_buffing_bytes - 1 ]=0x7D;
+            j++;
+            frame[bufSize +4+ extra_buffing_bytes ]=0x5D;
+        }else{
+            frame[bufSize+4+ extra_buffing_bytes]=bcc2;
+        }
+
     frame[bufSize+5+ extra_buffing_bytes]=FLAG;
     printf("Frame:      ");
     for(int i=0;i<bufSize+6+extra_buffing_bytes;i++){
@@ -545,8 +567,10 @@ int llread(unsigned char *packet)
                     I_state=ESC_on_DATA;
                 }
                 else if(byte==FLAG ){
-                    if(i>=MAX_PAYLOAD_SIZE) printf("max size\n");
-                    else{
+                    if(i>=MAX_PAYLOAD_SIZE) {
+                        printf("max size\n");
+
+                    }else{
                         
                         i--;
                         bcc2=packet[i];
@@ -564,7 +588,8 @@ int llread(unsigned char *packet)
                         frame_number=(1+frame_number)%2;
                         return i;
                     }else {
-                        printf("BCC2 error %x\n",bcc2_check);
+                            printf("BCC2 error %d\n",i);
+                        printf("BCC2 error 0x%x ::: 0x%x\n",bcc2_check,bcc2);
                         sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
                         i=0;
                         I_state=FLAG_I_RCV;
@@ -573,7 +598,7 @@ int llread(unsigned char *packet)
 
                 
                 }else if(i>=MAX_PAYLOAD_SIZE){
-                    printf("max size\n");
+                    printf("max --size\n");
                     bcc2 =byte;
                 }else{
                     packet[i++]=byte;
@@ -582,7 +607,20 @@ int llread(unsigned char *packet)
                 break;
             case ESC_on_DATA:
                 printf("ESC on DATA 0x%x\n",byte);
-                if(byte==0x5E){
+                if(i>=MAX_PAYLOAD_SIZE){
+                    if(byte==0x5E){
+                        bcc2=0x7E;
+                        I_state=READING_DATA;
+                    }else if(byte==0x5D){
+                        bcc2=0x7D;
+                        I_state=READING_DATA;
+                    }else{
+                        I_state=START_I;
+                        sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
+                        i=0;
+                    }
+
+                }else if(byte==0x5E){
                     packet[i++]=0x7E;
                     I_state=READING_DATA;
                 }else if(byte==0x5D){
