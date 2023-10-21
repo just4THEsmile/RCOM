@@ -127,6 +127,17 @@ int connect(LinkLayer connectionParameters){
     return fd;
 } 
 
+int disconnect(){
+    // Close serial port
+    if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+    {
+        perror("tcsetattr");
+        exit(-1);
+    }
+    
+    return close(fd);
+}
+
 unsigned char Read_Frame_control(int fd){
     state = START;
     unsigned char byte='\0';
@@ -735,7 +746,7 @@ int llread(unsigned char *packet)
                             }
                         }
                         printf("Connection closed\n");
-                    if(state==STOP_RCV) return close(fd);
+                    if(state==STOP_RCV) return disconnect();
 
                     I_state = START_I;
                 }
@@ -843,7 +854,7 @@ int llclose(int showStatistics)
     //printf("Sending UA\n");
     sendSupFrame(A_RECEIVER,C_UA);
     printf("Connection closed %d\n",state);
-    if(state==STOP_RCV) return close(fd);
+    if(state==STOP_RCV) return disconnect();
     return -1;
 }
 
