@@ -735,7 +735,7 @@ int llread(unsigned char *packet)
                             }
                         }
                         printf("Connection closed\n");
-                    if(state==STOP_RCV) return 0;
+                    if(state==STOP_RCV) return close(fd);
 
                     I_state = START_I;
                 }
