@@ -1,6 +1,12 @@
 {
     "files.associations": {
         "stdio.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "stat.h": "c",
+        "signal.h": "c",
+        "types.h": "c",
+        "stdlib.h": "c",
+        "link_layer.h": "c",
+        "application_layer.h": "c"
     }
 }
