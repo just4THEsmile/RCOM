@@ -221,6 +221,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
             }
 
         }
+        packet_len=build_Control_Packet(0x03,filename,len,packet);
+        llwrite(packet,packet_len);
 
         fclose(file);
         llclose(1);

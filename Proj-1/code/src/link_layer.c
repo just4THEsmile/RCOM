@@ -18,7 +18,6 @@
 // included by <termios.h>
 #define BAUDRATE B38400
 
-
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
