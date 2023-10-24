@@ -104,7 +104,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
     int fd=llopen(App_info);
 
-    printf("fd: %d\n",fd);
+    printf("llopen status: %d\n",fd);
 
     if(fd<0){
         printf("Error opening connection\n");
