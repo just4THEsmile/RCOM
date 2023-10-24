@@ -46,8 +46,8 @@ int build_Control_Packet(unsigned char C_value,const char *filename,long int fil
 
     packet[1]=0x00;                                                             //Type
     packet[2]= (unsigned char) ceil((double) log2f((float) file_len )/8 );                                  //Length
-    printf("File Length: %ld\n",file_len);
-    printf(" File Length len: %d\n",packet[2]);
+    //printf("File Length: %ld\n",file_len);
+    //printf(" File Length len: %d\n",packet[2]);
     
     for(int j = 0;j<packet[2];j++){
         //printf(" Logic  0x%lx ",0xFF & file_len);
@@ -59,7 +59,7 @@ int build_Control_Packet(unsigned char C_value,const char *filename,long int fil
     packet[i++]=0x01;
     packet[i++]=strlen(filename);
     memcpy(&packet[i],filename,strlen((char*)filename));
-    printf("Filename: %s\n",filename);
+    //printf("Filename: %s\n",filename);
 
 
 
@@ -73,7 +73,7 @@ int get_Control_Packet_Info(unsigned char *packet,unsigned char *C_value,char *f
     *file_len=0;
     int i=2;
     int file_len_len=packet[i++];
-    printf("File Length Length: %d\n\n\n",file_len_len);
+    //printf("File Length Length: %d\n\n\n",file_len_len);
 
     for(int j = 0;j<file_len_len;j++){
         //printf(" Logic  0x%f ",packet[2+file_len_len-j]*pow(256,j));
@@ -176,7 +176,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         fseek(file, begin, SEEK_SET);
         bytes_left=len;
 
-        printf("File Length: %ld\n",len);
+        //printf("File Length: %ld\n",len);
 
         
 

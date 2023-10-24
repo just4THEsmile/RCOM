@@ -212,7 +212,7 @@ int llopen(LinkLayer connectionParameters)
     connectionParameters_global = connectionParameters;
 
     fd = connect(connectionParameters);
-    printf("llopen with fd: %d\n",fd);
+    //printf("llopen with fd: %d\n",fd);
     if (fd < 0) {
         printf("Error connecting to serial port");
         return -1;
