@@ -14,6 +14,8 @@
 
 #include <signal.h>
 
+#include <time.h>
+
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
 #define BAUDRATE B38400
@@ -38,6 +40,9 @@ int fd;
 const char *serialPortName;
 
 LinkLayer connectionParameters_global;
+
+//tester frame
+unsigned char frame_test[20000];
 
 //frame state
 enum frame_Sup_state {START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP_RCV}; 
@@ -109,6 +114,9 @@ int connect(LinkLayer connectionParameters){
     
     return fd;
 } 
+void fun_sleep(){
+   //sleep(0.000001);
+}
 
 int disconnect(){
     // Close serial port
@@ -124,10 +132,10 @@ int disconnect(){
 unsigned char Read_Frame_control(int fd){
     state = START;
     unsigned char byte='\0';
-    unsigned char ret;
+    unsigned char ret='\0';
 
     while(alarmTrigger!=TRUE && state!=STOP_RCV){
-        if(read(fd,&byte,1)==1)
+        if(read(fd,&byte,1)==1){
             switch(state){
                 case START:
                     if(byte == FLAG){
@@ -179,6 +187,7 @@ unsigned char Read_Frame_control(int fd){
                 case STOP_RCV:
                     break;
             }
+        }
     }
     return ret;
 }
@@ -193,6 +202,7 @@ int sendSupFrame(unsigned char A,unsigned char C){
     buf[3] = A^C;
     buf[4] = FLAG;
 
+    //fun_sleep();
     int res = write(fd,buf,5);
 
     if(res<0){
@@ -230,7 +240,7 @@ int llopen(LinkLayer connectionParameters)
             state = START;
             unsigned char byte='\0';
             while(!alarmTrigger){ 
-                if(read(fd,&byte,1)==1)
+                if(read(fd,&byte,1)==1){
                     switch(state){
                         case START:
 
@@ -291,6 +301,7 @@ int llopen(LinkLayer connectionParameters)
 
                         }
                     }
+                }
             }
 
         printf("timout rx\n");
@@ -377,7 +388,7 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {   
-
+    //srand(time(0));
     unsigned char *frame=malloc(bufSize+6);
 
     unsigned char frame_number_aux=frame_number==0?C_Info0:C_Info1;
@@ -466,6 +477,12 @@ int llwrite(const unsigned char *buf, int bufSize)
 
         while(alarmTrigger == FALSE && accepted!=1){
 
+            //memcpy(frame_test,frame,bufSize + 6 + extra_buffing_bytes);
+            //if(rand()%100 < 10){
+            //    frame_test[10]=0x99;
+            //}
+            //printf("sending frame: 0x%x  %d\n",frame_test[7],frame_number);
+            //fun_sleep();
             int res = write(fd, frame, bufSize + 6 + extra_buffing_bytes);
 
             if(res<0){
@@ -480,13 +497,22 @@ int llwrite(const unsigned char *buf, int bufSize)
                 printf("Timeout\n");
                 continue;
             }else if(result== C_REJ0 || result == C_REJ1){
-                printf("Frame rejected\n");
+                printf("rejected: 0x%x  %d\n",frame_test[7],frame_number);
                 accepted=-1;
                 
-            }else if(result== C_RR0 || result == C_RR1){
-                //printf("Frame accepted\n");
+            }else if(result== C_RR0 && frame_number==1){
                 accepted=1;
                 frame_number=(1+frame_number)%2;
+                free(frame);
+                return (bufSize +6 +extra_buffing_bytes); 
+            }else if(result== C_RR1 && frame_number==0){
+                accepted=1;
+                frame_number=(1+frame_number)%2;
+                free(frame);
+                return (bufSize +6 +extra_buffing_bytes); 
+            }else if((result== C_RR1 && frame_number==1) || (result== C_RR0 && frame_number==0)){
+                printf("resending: 0x%x  %d\n",frame_test[7],frame_number);
+                accepted=-1;
             }else continue;
         }
         if(accepted==1){
@@ -524,7 +550,7 @@ int llread(unsigned char *packet)
 
 
     while(I_state!=STOP_I){    
-        if(read(fd,&byte,1)>0) 
+        if(read(fd,&byte,1)>0) {
             switch(I_state){
                 case START_I:
 
@@ -545,8 +571,15 @@ int llread(unsigned char *packet)
                     }
                     break;
                 case A_I_RCV:
+                    if(byte == C_Info0 && frame_number==1){
+                        I_state = START_I;
+                        sendSupFrame(A_SENDER,C_RR1);
 
-                    if(byte == C_Info0 || byte == C_Info1){
+                    }
+                    else if(byte == C_Info1 && frame_number==0){
+                        I_state = START_I;
+                        sendSupFrame(A_SENDER,C_RR0);
+                    }else if(byte == C_Info0 || byte == C_Info1){
 
                         I_state = C_I_RCV;
                         field_C=byte;
@@ -596,12 +629,14 @@ int llread(unsigned char *packet)
 
                         if(bcc2_check==bcc2){
 
-                            sendSupFrame(A_SENDER,frame_number==0?C_RR0:C_RR1);
+                            sendSupFrame(A_SENDER,frame_number==0?C_RR1:C_RR0);
                             frame_number=(1+frame_number)%2;
+                            //printf("Frame accepted value : 0x%x  %d\n",packet[3],frame_number);
                             return i;
                         }else {
 
                             sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
+                            printf("Frame rejected: 0x%x  %d\n",packet[3],frame_number);
                             i=0;
                             I_state=FLAG_I_RCV;
                         }
@@ -639,6 +674,7 @@ int llread(unsigned char *packet)
                         I_state=READING_DATA;
                     }else{
                         I_state=START_I;
+                        printf("Frame rejected on esc\n");
                         sendSupFrame(A_SENDER,frame_number==0?C_REJ0:C_REJ1);
                         i=0;
                     }
@@ -678,7 +714,7 @@ int llread(unsigned char *packet)
                                 state = START;
                                 unsigned char byte='\0';
                                 while(state!=STOP_RCV && !alarmTrigger){ 
-                                    if(read(fd,&byte,1)>0)
+                                    if(read(fd,&byte,1)>0){
                                         switch(state){
                                             case START:
                                                 if(byte == FLAG){
@@ -727,7 +763,7 @@ int llread(unsigned char *packet)
                                                 break;
                                             case STOP_RCV:
                                                 break;
-                                        }
+                                        }}
                                     byte='\0';
                                 }
                             }
@@ -756,6 +792,7 @@ int llread(unsigned char *packet)
                 
 
             }
+            }
         byte='\0';
     }    
 
@@ -780,7 +817,7 @@ int llclose(int showStatistics)
         state = START;
         unsigned char byte='\0';
         while(state!=STOP_RCV && !alarmTrigger){ 
-            if(read(fd,&byte,1)>0)
+            if(read(fd,&byte,1)>0){
                 switch(state){
                     case START:
                         if(byte == FLAG){
@@ -833,7 +870,7 @@ int llclose(int showStatistics)
                         break;
                     case STOP_RCV:
                         break;
-                }
+                }}
             byte='\0';
         }
     }

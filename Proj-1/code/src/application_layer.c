@@ -10,6 +10,8 @@
 #include <math.h>
 #include<unistd.h>
 
+#include <sys/time.h>   // for gettimeofday()
+
 
 
 
@@ -118,6 +120,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
 
 
+    struct timeval t1, t2;
+    double elapsedTime;
+
+    // start timer
+    gettimeofday(&t1, NULL);
 
     if(App_info.role==LlTx){
 
@@ -147,7 +154,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
         int packet_len=build_Control_Packet(0x02,filename,len,packet);
         llwrite(packet,packet_len);
-        printf("Control Packet Length: %d\n",packet_len);
+        //printf("Control Packet Length: %d\n",packet_len);
 
         int written;
 
@@ -200,9 +207,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
         if(llread(packet)==0) return;
 
         if(packet[0]==0x02){
-            printf("Control Packet\n");
+            //printf("Control Packet\n");
         }else{
-            printf("Not a Control Packet\n");
+            printf("Error\n");
             return;
         }
 
@@ -229,9 +236,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
         while((packet_len=llread(packet))>0){
 
-            if(packet[0]==0x03) continue;
-            else if(packet[0]==0x02) continue;
-
+            if(packet[0]==0x03) {
+                //printf("controll end \n");
+                continue;
+                }
+            else if(packet[0]==0x02) {
+               // printf("controll start");
+                continue;
+                }
             data_len=get_Data_Packet_Info(packet,buf);
 
             fwrite(buf,sizeof(unsigned char),data_len,new_file);
@@ -245,4 +257,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
     }
     free(buf);
     free(packet);
+
+    // stop timer
+    gettimeofday(&t2, NULL);
+
+    // compute and print the elapsed time in millisec
+    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
+    elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // us to ms
+    printf("\n\n\n%f ms.\n", elapsedTime);
 }
