@@ -169,7 +169,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
                 packet_len=build_Data_Packet(buf, bytes_left, packet);
 
 
-                if((written =llwrite(packet,packet_len))<0) printf("ERROR on WRITE");
+                if((written =llwrite(packet,packet_len))<0) {
+                    printf("ERROR on WRITE");
+                    break;
+                }
+                    
 
 
                 bytes_left=0;
@@ -182,7 +186,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,int
 
 
                 
-                if((written =llwrite(packet,packet_len))<0) printf("ERROR on WRITE");
+                if((written =llwrite(packet,packet_len))<0) {
+                    printf("ERROR on WRITE");
+                    break;
+                }
                 //printf("Written: %d\n",written);
 
                 bytes_left-=(MAX_PAYLOAD_SIZE-3);

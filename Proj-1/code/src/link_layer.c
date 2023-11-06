@@ -502,11 +502,13 @@ int llwrite(const unsigned char *buf, int bufSize)
                 
             }else if(result== C_RR0 && frame_number==1){
                 accepted=1;
+                //printf("accepted: 0x%x  %d\n",frame_test[7],frame_number);
                 frame_number=(1+frame_number)%2;
                 free(frame);
                 return (bufSize +6 +extra_buffing_bytes); 
             }else if(result== C_RR1 && frame_number==0){
                 accepted=1;
+                //printf("accepted: 0x%x  %d\n",frame_test[7],frame_number);
                 frame_number=(1+frame_number)%2;
                 free(frame);
                 return (bufSize +6 +extra_buffing_bytes); 
