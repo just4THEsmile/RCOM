@@ -16,9 +16,6 @@
 
 #include <time.h>
 
-// Baudrate settings are defined in <asm/termbits.h>, which is
-// included by <termios.h>
-#define BAUDRATE B38400
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
@@ -86,7 +83,7 @@ int connect(LinkLayer connectionParameters){
     // Clear struct for new port settings
     memset(&newtio, 0, sizeof(newtio));
 
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = connectionParameters.baudRate | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -115,7 +112,13 @@ int connect(LinkLayer connectionParameters){
     return fd;
 } 
 void fun_sleep(){
-   //sleep(0.000001);
+       struct timespec sleep_time, remaining_time;
+    sleep_time.tv_sec = 0;
+    sleep_time.tv_nsec = 50000000;  // 10 milliseconds
+
+    if (nanosleep(&sleep_time, &remaining_time) == -1) {
+        perror("nanosleep");
+    }
 }
 
 int disconnect(){
@@ -218,6 +221,7 @@ int sendSupFrame(unsigned char A,unsigned char C){
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {   
+    //srand(time(0));
     alarmCount=0;
     connectionParameters_global = connectionParameters;
 
@@ -388,7 +392,6 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {   
-    //srand(time(0));
     unsigned char *frame=malloc(bufSize+6);
 
     unsigned char frame_number_aux=frame_number==0?C_Info0:C_Info1;

@@ -7,6 +7,7 @@
         "types.h": "c",
         "stdlib.h": "c",
         "link_layer.h": "c",
-        "application_layer.h": "c"
+        "application_layer.h": "c",
+        "termios.h": "c"
     }
 }
