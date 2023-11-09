@@ -309,6 +309,7 @@ int llopen(LinkLayer connectionParameters)
             }
 
         printf("timout rx\n");
+        disconnect();
         return -1;
 
     }else if(connectionParameters.role == LlRx){
@@ -380,6 +381,7 @@ int llopen(LinkLayer connectionParameters)
 
     }else {
         printf("\nerror\n");
+        disconnect();
         return -1;
         }
 
