@@ -1,0 +1,16 @@
+root@tux22:~# traceroute -n 172.16.20.1
+traceroute to 172.16.20.1 (172.16.20.1), 30 hops max, 60 byte packets
+ 1  172.16.21.254  0.242 ms  0.239 ms  0.254 ms
+ 2  172.16.21.253  0.381 ms  0.368 ms  0.359 ms
+ 3  172.16.20.1  0.564 ms  0.555 ms  0.604 ms
+
+from tx2 to router to tux4 (connection between the bridges) to tux3
+
+
+
+after reinitializing route throug tux4
+root@tux22:~# traceroute 172.16.20.1
+traceroute to 172.16.20.1 (172.16.20.1), 30 hops max, 60 byte packets
+ 1  172.16.21.253 (172.16.21.253)  0.400 ms  0.361 ms  0.293 ms
+ 2  172.16.20.1 (172.16.20.1)  0.526 ms  0.473 ms  0.487 ms
+
