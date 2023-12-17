@@ -72,6 +72,7 @@ int connect_to_server(const char* ip, int port) {
 
     return sockfd;
 }
+
 int read_response(int socket,char* buf){
 
     memset(buf, 0, 300);
@@ -118,7 +119,6 @@ int read_response(int socket,char* buf){
             break;
         }
     }
-
     sscanf( buf,"%d", &responseCode);
     printf("%d\n",responseCode);
     return responseCode;
@@ -235,6 +235,7 @@ int parse_ftp_url(const char* url, ftp_url* result) {
         char *filename = strrchr(result->path, '/') + 1;
         strncpy(result->filename, filename, sizeof(result->filename) - 1);
     }
+    printf("path: %s\n", result->host);
 
     if ((h = gethostbyname(result->host)) == NULL) {
         herror("gethostbyname()");
@@ -257,8 +258,10 @@ int parse_ftp_url(const char* url, ftp_url* result) {
 
 
 int main(int argc, char **argv) {
-    if (argc > 2)
+    if (argc > 2 || argc < 2){
         printf("**** wrong usage try ./download ftp://[<user>:<password>@]<host>/<url-path> \n");
+        return -1;
+        }
 
     int sockfd;
     ftp_url result;
